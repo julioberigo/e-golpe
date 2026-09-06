@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>É GOLPE? - Detector de Mensagens Suspeitas</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #f4f6f8; color: #333; display: flex; justify-content: center; padding: 20px; }
+    .container { max-width: 600px; width: 100%; background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+    h1 { text-align: center; color: #1a202c; font-size: 26px; margin-bottom: 8px; }
+    p.subtitle { text-align: center; color: #718096; font-size: 14px; margin-bottom: 20px; }
+    textarea { width: 100%; height: 120px; padding: 12px; border: 1px solid #cbd5e0; border-radius: 8px; font-size: 15px; resize: vertical; outline: none; }
+    textarea:focus { border-color: #3182ce; }
+    button { width: 100%; padding: 14px; background-color: #3182ce; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 12px; transition: background 0.2s; }
+    button:hover { background-color: #2b6cb0; }
+    
+    .result-box { display: none; margin-top: 25px; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; background-color: #faf5ff; }
+    .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .badge { padding: 6px 12px; border-radius: 20px; font-weight: bold; color: white; font-size: 14px; }
+    .badge-alto { background-color: #e53e3e; }
+    .badge-medio { background-color: #dd6b20; }
+    .badge-baixo { background-color: #38a169; }
+    
+    .section-title { font-weight: bold; margin-top: 12px; margin-bottom: 6px; color: #2d3748; font-size: 15px; }
+    ul { list-style: none; padding-left: 5px; }
+    li { font-size: 14px; color: #4a5568; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>🛡️ É GOLPE?</h1>
+    <p class="subtitle">Cole a mensagem recebida para verificar se há risco de fraude.</p>
+
+    <textarea id="messageInput" placeholder="Ex: Seu CPF foi bloqueado. Acesse bit.ly/123 para regularizar..."></textarea>
+    <button onclick="analyzeMessage()">Analisar Mensagem</button>
+
+    <div id="resultBox" class="result-box">
+      <div class="result-header">
+        <span style="font-size: 18px; font-weight: bold;">Diagnóstico:</span>
+        <span id="riskBadge" class="badge"></span>
+      </div>
+
+      <div class="section-title">⚠️ Motivos do Alerta:</div>
+      <ul id="flagsList"></ul>
+
+      <div class="section-title">💡 Recomendações de Segurança:</div>
+      <ul id="adviceList"></ul>
+    </div>
+  </div>
+
+  <script>
+    function analyzeMessage() {
+      const text = document.getElementById('messageInput').value.trim();
+      if (!text) return;
+
+      const lowerText = text.toLowerCase();
+      let score = 0;
+      let flags = [];
+
+      // 1. Termos de Urgência
+      const urgencyWords = ['urgente', 'bloqueado', 'cancelado', 'expira', '24 horas', 'hoje mesmo', 'suspenso', 'imediato'];
+      const foundUrgency = urgencyWords.filter(word => lowerText.includes(word));
+      if (foundUrgency.length > 0) {
+        score += 35;
+        flags.push(`Pressão por urgência ou ameaça (${foundUrgency.join(', ')}).`);
+      }
+
+      // 2. Golpe do Falso Parente / PIX
+      if (lowerText.includes('mudei de numero') || lowerText.includes('novo numero') || lowerText.includes('troquei de numero')) {
+        score += 45;
+        flags.push("Padrão do 'Golpe do Falso Parente' solicitando dinheiro.");
+      } else if (['pix', 'transferencia', 'fatura', 'boleto', 'reembolso', 'ganhou'].some(w => lowerText.includes(w))) {
+        score += 20;
+        flags.push("Menção a pagamentos ou movimentações financeiras.");
+      }
+
+      // 3. Links Suspeitos
+      const hasLink = /(https?:\/\/[^\s]+|(?:www\.)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/.test(lowerText);
+      if (hasLink) {
+        score += 25;
+        flags.push("Contém link externo no texto.");
+        if (['bit.ly', 'tinyurl.com', 'cutt.ly', '.xyz', '.top', '.info'].some(d => lowerText.includes(d))) {
+          score += 20;
+          flags.push("Uso de encurtadores de link ou domínios não oficiais.");
+        }
+      }
+
+      // Limite do score
+      score = Math.min(score, 100);
+
+      // Definição do Nível e Conselhos
+      let riskLevel = 'BAIXO';
+      let badgeClass = 'badge-baixo';
+      let advice = [
+        "Nenhum padrão óbvio de golpe identificado, mas mantenha a atenção.",
+        "Nunca compartilhe senhas ou códigos recebidos por SMS."
+      ];
+
+      if (score >= 60) {
+        riskLevel = 'ALTO';
+        badgeClass = 'badge-alto';
+        advice = [
+          "Não clique em nenhum link enviado na mensagem.",
+          "Não faça transferências PIX ou pagamentos de boletos.",
+          "Acesse o aplicativo oficial do seu banco ou empresa para confirmar."
+        ];
+      } else if (score >= 30) {
+        riskLevel = 'MÉDIO';
+        badgeClass = 'badge-medio';
+        advice = [
+          "Confira o remetente antes de tomar qualquer ação.",
+          "Ligue para o número oficial da empresa para tirar dúvidas."
+        ];
+      }
+
+      // Exibição dos resultados
+      const badgeElem = document.getElementById('riskBadge');
+      badgeElem.textContent = `${riskLevel} (${score}%)`;
+      badgeElem.className = `badge ${badgeClass}`;
+
+      document.getElementById('flagsList').innerHTML = (flags.length ? flags : ["Nenhum indicador crítico encontrado."])
+        .map(f => `<li>• ${f}</li>`).join('');
+
+      document.getElementById('adviceList').innerHTML = advice
+        .map(a => `<li>✓ ${a}</li>`).join('');
+
+      document.getElementById('resultBox').style.display = 'block';
+    }
+  </script>
+</body>
+</html>
